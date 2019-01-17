@@ -27,6 +27,7 @@ func run() error {
 		bucket       string
 		fixedTimeStr string
 		noIntegrity  bool
+		hostBucket   bool
 	)
 
 	flag.StringVar(&db, "db", "locals3.db", "Database path / name when using bolt backend")
@@ -35,6 +36,7 @@ func run() error {
 	flag.StringVar(&bucket, "bucket", "fakes3", "Bucket to create by default (required)")
 	flag.StringVar(&fixedTimeStr, "time", "", "RFC3339 format. If passed, the server's clock will always see this time; does not affect existing stored dates.")
 	flag.BoolVar(&noIntegrity, "no-integrity", false, "Pass this flag to disable Content-MD5 validation when uploading.")
+	flag.BoolVar(&hostBucket, "hostbucket", false, "If passed, the bucket name will be extracted from the first segment of the hostname, rather than the first part of the URL path.")
 	flag.Parse()
 
 	if bucket == "" {
@@ -89,6 +91,7 @@ func run() error {
 		gofakes3.WithTimeSkewLimit(timeSkewLimit),
 		gofakes3.WithIntegrityCheck(!noIntegrity),
 		gofakes3.WithLogger(gofakes3.GlobalLog()),
+		gofakes3.WithHostBucket(hostBucket),
 	)
 	return listenAndServe(host, faker.Server())
 }

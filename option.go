@@ -49,3 +49,13 @@ func WithLogger(logger Logger) Option {
 func WithGlobalLog() Option {
 	return WithLogger(GlobalLog())
 }
+
+// WithHostBucket enables or disables bucket rewriting in the router.
+// If active, the URL 'http://mybucket.localhost/object' will be routed
+// as if the URL path was '/mybucket/object'.
+//
+// See https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingBucket.html
+// for details.
+func WithHostBucket(enabled bool) Option {
+	return func(g *GoFakeS3) { g.hostBucket = enabled }
+}
