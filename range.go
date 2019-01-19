@@ -78,7 +78,7 @@ func parseRangeHeader(s string) (*ObjectRangeRequest, error) {
 
 	ranges := strings.Split(s[len(b):], ",")
 	if len(ranges) > 1 {
-		return nil, ErrorMessage(ErrNotImplemented, "multiple ranges not supported")
+		return nil, ErrorMessage(ErrInvalidRange, "multiple ranges not supported")
 	}
 
 	rnge := strings.TrimSpace(ranges[0])

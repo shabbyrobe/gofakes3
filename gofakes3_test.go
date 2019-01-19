@@ -321,6 +321,12 @@ func TestGetObjectRangeInvalid(t *testing.T) {
 	}{
 		{"boats=0-0"},
 		{"bytes="},
+		{"bytes=0"},
+		{"bytes=0-1,1-2"}, // multiple ranges invalid
+		{"bytes=-quack"},
+		{"bytes=quack-1"},
+		{"bytes=1-quack"},
+		{"bytes=9223372036854775808-"}, // int64 overflow
 	} {
 		t.Run(fmt.Sprintf("%d/%s", idx, tc.hdr), func(t *testing.T) {
 			ts := newTestServer(t)
