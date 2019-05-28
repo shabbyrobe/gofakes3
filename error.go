@@ -87,6 +87,12 @@ const (
 	ErrTooManyBuckets       ErrorCode = "TooManyBuckets"
 	ErrNotImplemented       ErrorCode = "NotImplemented"
 
+	// {{{ These come from S3 Select
+	ErrInvalidCompressionFormat ErrorCode = "InvalidCompressionFormat"
+	ErrUnsupportedRangeHeader   ErrorCode = "UnsupportedRangeHeader"
+	ErrInvalidDataSource        ErrorCode = "InvalidDataSource"
+	// }}}
+
 	ErrInternal ErrorCode = "InternalError"
 )
 
@@ -238,6 +244,8 @@ func (e ErrorCode) Status() int {
 		ErrInlineDataTooLarge,
 		ErrInvalidArgument,
 		ErrInvalidBucketName,
+		ErrInvalidCompressionFormat,
+		ErrInvalidDataSource,
 		ErrInvalidDigest,
 		ErrInvalidPart,
 		ErrInvalidPartOrder,
@@ -248,7 +256,8 @@ func (e ErrorCode) Status() int {
 		ErrMethodNotAllowed,
 		ErrMalformedPOSTRequest,
 		ErrMalformedXML,
-		ErrTooManyBuckets:
+		ErrTooManyBuckets,
+		ErrUnsupportedRangeHeader:
 		return http.StatusBadRequest
 
 	case ErrRequestTimeTooSkewed:

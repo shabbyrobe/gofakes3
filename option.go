@@ -4,6 +4,12 @@ import "time"
 
 type Option func(g *GoFakeS3)
 
+// WithSelector sets the implementation that will be used by GoFakeS3 to handle
+// S3 Select expressions.
+func WithSelector(sel Selector) Option {
+	return func(g *GoFakeS3) { g.selector = sel }
+}
+
 // WithTimeSource allows you to substitute the behaviour of time.Now() and
 // time.Since() within GoFakeS3. This can be used to trigger time skew errors,
 // or to ensure the output of the commands is deterministic.

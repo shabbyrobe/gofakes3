@@ -459,6 +459,181 @@ type ObjectID struct {
 	VersionID string `xml:"VersionId,omitempty" json:"VersionId,omitempty"`
 }
 
+type SelectExpressionType string
+
+const (
+	SelectExpressionMissing SelectExpressionType = ""
+	SelectExpressionSQL     SelectExpressionType = "SQL"
+)
+
+type SelectCompressionType string
+
+const (
+	SelectCompressionMissing SelectCompressionType = ""
+	SelectCompressionNone    SelectCompressionType = "NONE"
+	SelectCompressionGZIP    SelectCompressionType = "GZIP"
+	SelectCompressionBZIP2   SelectCompressionType = "BZIP2"
+)
+
+type SelectFileHeaderInfo string
+
+const (
+	SelectFileHeaderInfoMissing SelectFileHeaderInfo = ""
+
+	// The first line is not a column header.
+	SelectFileHeaderInfoNone SelectFileHeaderInfo = "NONE"
+
+	// The first line is a column header, and you can use the header value to
+	// identify a column in an expression (for example, SELECT "name" FROM S3Object).
+	SelectFileHeaderInfoUse SelectFileHeaderInfo = "USE"
+
+	// The first line is a column header, but you can't use the header values to
+	// identify the column in an expression. You can use column position (such as _1, _2,
+	// …) to identify the column (for example, SELECT s._1 FROM S3Object s).
+	SelectFileHeaderInfoIgnore SelectFileHeaderInfo = "IGNORE"
+)
+
+type SelectInput interface {
+	IsSelectInput()
+}
+
+type SelectOutput interface {
+	IsSelectOutput()
+}
+
+type SelectCSVShared struct {
+	// The value used to separate individual records in the input. Instead of the default
+	// value, you can specify an arbitrary delimiter, including an octal character. For
+	// example, \\036 is parsed as the "record separator" (non-printing) character.
+	//
+	// You can specify up to two characters for a record delimiter. You can specify two
+	// characters, one character and one octal, or two octals. For example, \r\n is a
+	// valid record delimiter.
+	//
+	// Default: \n
+	RecordDelimiter string `xml:"RecordDelimiter"`
+
+	// The value used to separate individual fields in a record. Instead of the default
+	// value, you can specify an arbitrary delimiter, including an octal character. For
+	// example, \\036 is parsed as the "record separator" (non-printing) character.
+	//
+	// Default: ,
+	FieldDelimiter string `xml:"FieldDelimiter"`
+
+	// Default: "
+	QuoteCharacter string `xml:"QuoteCharacter"`
+
+	// The value to use for escaping the quotation mark character inside an already
+	// escaped value. For example, the value """ a , b """ is parsed as " a , b ".
+	// Default: "
+	QuoteEscapeCharacter string `xml:"QuoteEscapeCharacter"`
+}
+
+type SelectCSVInput struct {
+	XMLName xml.Name `xml:"CSV"`
+
+	// Describes the first line in the input data.
+	FileHeaderInfo SelectFileHeaderInfo `xml:"FileHeaderInfo"`
+
+	// If the first character of a line of text matches the comment character, the row is
+	// considered a comment and is discarded from the input. You can specify any character to
+	// indicate a comment line.
+	//
+	// Default: #
+	Comments string `xml:"Comments"`
+
+	// Specifies that CSV input records might contain record delimiters within quote
+	// characters. Setting this option to TRUE could result in slower performance.
+	//
+	// Default: FALSE
+	AllowQuotedRecordDelimiter bool `xml:"AllowQuotedRecordDelimiter"`
+}
+
+func (*SelectCSVInput) IsSelectInput() {}
+
+type SelectOutputQuote string
+
+const (
+	SelectOutputQuoteAlways   SelectOutputQuote = "ALWAYS"
+	SelectOutputQuoteAsNeeded SelectOutputQuote = "ASNEEDED"
+)
+
+type SelectCSVOutput struct {
+	XMLName xml.Name `xml:"CSV"`
+
+	SelectCSVShared
+
+	// Default: ASNEEDED
+	QuoteFields SelectOutputQuote `xml:"QuoteFields"`
+}
+
+func (*SelectCSVOutput) IsSelectOutput() {}
+
+type SelectJSONType string
+
+const (
+	SelectJSONDocument SelectJSONType = "DOCUMENT"
+	SelectJSONLines    SelectJSONType = "LINES"
+)
+
+type SelectJSONInput struct {
+	XMLName xml.Name `xml:"JSON"`
+
+	// The type of JSON content. LINES means that each line in the input data contains a
+	// single JSON object. DOCUMENT means that a single JSON object can span multiple lines in
+	// the input. Using DOCUMENT might result in slower performance in some cases.
+	Type SelectJSONType `xml:"Type"`
+}
+
+func (*SelectJSONInput) IsSelectInput() {}
+
+type SelectJSONOutput struct {
+	XMLName xml.Name `xml:"JSON"`
+
+	// The value used to separate individual records in the output. Instead of the default
+	// value, you can specify an arbitrary delimiter, including an octal character. For
+	// example, \\036 is parsed as the "record separator" (non-printing) character.
+	//
+	// You can specify up to two characters for a record delimiter. You can specify two
+	// characters, one character and one octal, or two octals. For example, \r\n is a
+	// valid record delimiter.
+	RecordDelimiter string `xml:"RecordDelimiter"`
+}
+
+func (*SelectJSONOutput) IsSelectOutput() {}
+
+type SelectParquetInput struct {
+	XMLName xml.Name `xml:"Parquet"`
+}
+
+func (*SelectParquetInput) IsSelectInput() {}
+
+type SelectExpression struct {
+	Expression     string               `xml:"Expression"`
+	ExpressionType SelectExpressionType `xml:"ExpressionType"`
+}
+
+// SelectRequest filters the contents of an Amazon S3 object based on a simple structured
+// query language (SQL) statement.
+type SelectRequest struct {
+	SelectExpression
+
+	InputSerialization struct {
+		CompressionType SelectCompressionType `xml:"CompressionType"`
+
+		// Only one of these may be set:
+		CSV     *SelectCSVInput     `xml:"CSV"`
+		JSON    *SelectJSONInput    `xml:"JSON"`
+		Parquet *SelectParquetInput `xml:"Parquet"`
+	} `xml:"InputSerialization"`
+
+	OutputSerialization struct {
+		// Only one of these may be set:
+		CSV  *SelectCSVOutput  `xml:"CSV"`
+		JSON *SelectJSONOutput `xml:"JSON"`
+	} `xml:"OutputSerialization"`
+}
+
 type StorageClass string
 
 func (s StorageClass) MarshalXML(e *xml.Encoder, start xml.StartElement) error {

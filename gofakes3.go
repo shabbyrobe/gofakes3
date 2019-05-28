@@ -2,6 +2,8 @@ package gofakes3
 
 import (
 	"bytes"
+	"compress/bzip2"
+	"compress/gzip"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/xml"
@@ -25,6 +27,7 @@ import (
 type GoFakeS3 struct {
 	storage   Backend
 	versioned VersionedBackend
+	selector  Selector
 
 	timeSource              TimeSource
 	timeSkew                time.Duration
@@ -326,7 +329,7 @@ func (g *GoFakeS3) createBucket(bucket string, w http.ResponseWriter, r *http.Re
 	return nil
 }
 
-// DeleteBucket deletes the bucket in the underlying backend, if and only if it
+// deleteBucket deletes the bucket in the underlying backend, if and only if it
 // contains no items.
 func (g *GoFakeS3) deleteBucket(bucket string, w http.ResponseWriter, r *http.Request) error {
 	g.log.Print(LogInfo, "DELETE BUCKET:", bucket)
@@ -337,7 +340,7 @@ func (g *GoFakeS3) deleteBucket(bucket string, w http.ResponseWriter, r *http.Re
 	return nil
 }
 
-// HeadBucket checks whether a bucket exists.
+// headBucket checks whether a bucket exists.
 func (g *GoFakeS3) headBucket(bucket string, w http.ResponseWriter, r *http.Request) error {
 	g.log.Print(LogInfo, "HEAD BUCKET", bucket)
 	g.log.Print(LogInfo, "bucketname:", bucket)
@@ -350,7 +353,7 @@ func (g *GoFakeS3) headBucket(bucket string, w http.ResponseWriter, r *http.Requ
 	return nil
 }
 
-// GetObject retrievs a bucket object.
+// getObject retrievs a bucket object.
 func (g *GoFakeS3) getObject(
 	bucket, object string,
 	versionID VersionID,
@@ -400,6 +403,109 @@ func (g *GoFakeS3) getObject(
 	obj.Range.writeHeader(obj.Size, w)
 
 	if _, err := io.Copy(w, obj.Contents); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// selectObject implements the HTTP portions of S3 Select:
+// https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectSELECTContent.html
+//
+func (g *GoFakeS3) selectObject(bucket, object string, w http.ResponseWriter, r *http.Request) error {
+	if g.selector == nil {
+		return ErrNotImplemented
+	}
+	if r.Header.Get("Range") != "" {
+		return ErrUnsupportedRangeHeader
+	}
+
+	var in SelectRequest
+	if err := g.xmlDecodeBody(r.Body, &in); err != nil {
+		return err
+	}
+
+	var infmt SelectInput
+	var outfmt SelectOutput
+
+	// FIXME: find a nicer way to express this
+	if in.InputSerialization.CSV != nil {
+		if in.InputSerialization.JSON != nil || in.InputSerialization.Parquet != nil {
+			return ErrInvalidDataSource
+		}
+		infmt = in.InputSerialization.CSV
+
+	} else if in.InputSerialization.JSON != nil {
+		if in.InputSerialization.CSV != nil || in.InputSerialization.Parquet != nil {
+			return ErrInvalidDataSource
+		}
+		infmt = in.InputSerialization.JSON
+
+	} else if in.InputSerialization.Parquet != nil {
+		if in.InputSerialization.CSV != nil || in.InputSerialization.JSON != nil {
+			return ErrInvalidDataSource
+		}
+		infmt = in.InputSerialization.Parquet
+
+	} else {
+		return ErrInvalidDataSource
+	}
+
+	// FIXME: find a nicer way to express this, too
+	if in.OutputSerialization.CSV != nil {
+		if in.InputSerialization.JSON != nil {
+			return ErrInvalidDataSource
+		}
+		outfmt = in.OutputSerialization.CSV
+
+	} else if in.OutputSerialization.JSON != nil {
+		if in.InputSerialization.CSV != nil {
+			return ErrInvalidDataSource
+		}
+		outfmt = in.OutputSerialization.JSON
+
+	} else {
+		return ErrInvalidDataSource
+	}
+
+	obj, err := g.storage.GetObject(bucket, object, nil)
+	if err != nil {
+		return err
+	}
+	if obj == nil {
+		g.log.Print(LogErr, "unexpected nil object for key", bucket, object)
+		return ErrInternal
+	}
+	defer obj.Contents.Close()
+
+	var rdr io.Reader
+
+	switch in.InputSerialization.CompressionType {
+	case SelectCompressionGZIP:
+		gzrdr, err := gzip.NewReader(obj.Contents)
+		if err != nil {
+			return err
+		}
+		defer gzrdr.Close()
+		rdr = gzrdr
+
+	case SelectCompressionBZIP2:
+		rdr = bzip2.NewReader(obj.Contents)
+
+	case SelectCompressionNone:
+		rdr = obj.Contents
+
+	default:
+		return ErrInvalidCompressionFormat
+	}
+
+	selected, err := g.selector.Select(rdr, in.SelectExpression, infmt, outfmt)
+	if err != nil {
+		return err
+	}
+	defer selected.Close()
+
+	if _, err := io.Copy(w, selected); err != nil {
 		return err
 	}
 
