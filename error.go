@@ -88,9 +88,12 @@ const (
 	ErrNotImplemented       ErrorCode = "NotImplemented"
 
 	// {{{ These come from S3 Select
-	ErrInvalidCompressionFormat ErrorCode = "InvalidCompressionFormat"
-	ErrUnsupportedRangeHeader   ErrorCode = "UnsupportedRangeHeader"
-	ErrInvalidDataSource        ErrorCode = "InvalidDataSource"
+	ErrInvalidCompressionFormat       ErrorCode = "InvalidCompressionFormat"
+	ErrInvalidDataSource              ErrorCode = "InvalidDataSource"
+	ErrInvalidExpressionType          ErrorCode = "InvalidExpressionType"
+	ErrMultipleDataSourcesUnsupported ErrorCode = "MultipleDataSourcesUnsupported"
+	ErrUnsupportedRangeHeader         ErrorCode = "UnsupportedRangeHeader"
+	ErrUnsupportedSyntax              ErrorCode = "UnsupportedSyntax"
 	// }}}
 
 	ErrInternal ErrorCode = "InternalError"
@@ -247,6 +250,7 @@ func (e ErrorCode) Status() int {
 		ErrInvalidCompressionFormat,
 		ErrInvalidDataSource,
 		ErrInvalidDigest,
+		ErrInvalidExpressionType,
 		ErrInvalidPart,
 		ErrInvalidPartOrder,
 		ErrInvalidToken,
@@ -256,8 +260,10 @@ func (e ErrorCode) Status() int {
 		ErrMethodNotAllowed,
 		ErrMalformedPOSTRequest,
 		ErrMalformedXML,
+		ErrMultipleDataSourcesUnsupported,
 		ErrTooManyBuckets,
-		ErrUnsupportedRangeHeader:
+		ErrUnsupportedRangeHeader,
+		ErrUnsupportedSyntax:
 		return http.StatusBadRequest
 
 	case ErrRequestTimeTooSkewed:

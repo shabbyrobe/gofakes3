@@ -16,6 +16,7 @@ import (
 	"github.com/johannesboyne/gofakes3/backend/s3afero"
 	"github.com/johannesboyne/gofakes3/backend/s3bolt"
 	"github.com/johannesboyne/gofakes3/backend/s3mem"
+	"github.com/johannesboyne/gofakes3/selector/s3select"
 	"github.com/spf13/afero"
 )
 
@@ -35,6 +36,7 @@ type fakeS3Flags struct {
 	fixedTimeStr  string
 	noIntegrity   bool
 	hostBucket    bool
+	selector      bool
 
 	boltDb         string
 	directFsPath   string
@@ -53,6 +55,9 @@ func (f *fakeS3Flags) attach(flagSet *flag.FlagSet) {
 	flagSet.StringVar(&f.initialBucket, "initialbucket", "", "If passed, this bucket will be created on startup if it does not already exist.")
 	flagSet.BoolVar(&f.noIntegrity, "no-integrity", false, "Pass this flag to disable Content-MD5 validation when uploading.")
 	flagSet.BoolVar(&f.hostBucket, "hostbucket", false, "If passed, the bucket name will be extracted from the first segment of the hostname, rather than the first part of the URL path.")
+
+	// Selector:
+	flagSet.BoolVar(&f.selector, "selector", true, "Enable s3select support")
 
 	// Backend specific:
 	flagSet.StringVar(&f.backendKind, "backend", "", "Backend to use to store data (memory, bolt, directfs, fs)")
@@ -215,13 +220,20 @@ func run() error {
 		log.Println("created -initialbucket", values.initialBucket)
 	}
 
-	faker := gofakes3.New(backend,
+	var options = []gofakes3.Option{
 		gofakes3.WithIntegrityCheck(!values.noIntegrity),
 		gofakes3.WithTimeSkewLimit(timeSkewLimit),
 		gofakes3.WithTimeSource(timeSource),
 		gofakes3.WithLogger(gofakes3.GlobalLog()),
 		gofakes3.WithHostBucket(values.hostBucket),
-	)
+	}
+
+	if values.selector {
+		sel := s3select.NewSelector()
+		options = append(options, gofakes3.WithSelector(sel))
+	}
+
+	faker := gofakes3.New(backend, options...)
 
 	return listenAndServe(values.host, faker.Server())
 }

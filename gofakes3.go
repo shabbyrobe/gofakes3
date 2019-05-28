@@ -431,19 +431,19 @@ func (g *GoFakeS3) selectObject(bucket, object string, w http.ResponseWriter, r 
 	// FIXME: find a nicer way to express this
 	if in.InputSerialization.CSV != nil {
 		if in.InputSerialization.JSON != nil || in.InputSerialization.Parquet != nil {
-			return ErrInvalidDataSource
+			return ErrMultipleDataSourcesUnsupported
 		}
 		infmt = in.InputSerialization.CSV
 
 	} else if in.InputSerialization.JSON != nil {
 		if in.InputSerialization.CSV != nil || in.InputSerialization.Parquet != nil {
-			return ErrInvalidDataSource
+			return ErrMultipleDataSourcesUnsupported
 		}
 		infmt = in.InputSerialization.JSON
 
 	} else if in.InputSerialization.Parquet != nil {
 		if in.InputSerialization.CSV != nil || in.InputSerialization.JSON != nil {
-			return ErrInvalidDataSource
+			return ErrMultipleDataSourcesUnsupported
 		}
 		infmt = in.InputSerialization.Parquet
 
@@ -453,14 +453,14 @@ func (g *GoFakeS3) selectObject(bucket, object string, w http.ResponseWriter, r 
 
 	// FIXME: find a nicer way to express this, too
 	if in.OutputSerialization.CSV != nil {
-		if in.InputSerialization.JSON != nil {
-			return ErrInvalidDataSource
+		if in.OutputSerialization.JSON != nil {
+			return ErrMultipleDataSourcesUnsupported
 		}
 		outfmt = in.OutputSerialization.CSV
 
 	} else if in.OutputSerialization.JSON != nil {
-		if in.InputSerialization.CSV != nil {
-			return ErrInvalidDataSource
+		if in.OutputSerialization.CSV != nil {
+			return ErrMultipleDataSourcesUnsupported
 		}
 		outfmt = in.OutputSerialization.JSON
 
@@ -492,7 +492,7 @@ func (g *GoFakeS3) selectObject(bucket, object string, w http.ResponseWriter, r 
 	case SelectCompressionBZIP2:
 		rdr = bzip2.NewReader(obj.Contents)
 
-	case SelectCompressionNone:
+	case SelectCompressionNone, "":
 		rdr = obj.Contents
 
 	default:

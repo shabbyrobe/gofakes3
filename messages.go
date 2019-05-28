@@ -466,6 +466,21 @@ const (
 	SelectExpressionSQL     SelectExpressionType = "SQL"
 )
 
+func (v *SelectExpressionType) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	var s string
+	if err := d.DecodeElement(&s, &start); err != nil {
+		// FIXME: this doesn't seem to detect or report errors if the element is the wrong type.
+		return err
+	}
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "sql" {
+		*v = SelectExpressionSQL
+	} else {
+		return ErrorMessagef(ErrInvalidExpressionType, "unexpected value %q for SelectExpressionType, expected 'SQL'", s)
+	}
+	return nil
+}
+
 type SelectCompressionType string
 
 const (
