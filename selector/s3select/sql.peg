@@ -1,0 +1,68 @@
+package s3select
+
+type Peg Peg {
+    *SelectQuery
+}
+
+Grammar <- Spacing
+           Select FieldsExpr MustSpacing
+           From Object MustSpacing (As? Alias)?
+           (MustSpacing WhereClause)?
+           (MustSpacing LimitClause)?
+           EndOfFile
+
+
+LimitClause   <- Limit Number
+WhereClause   <- Where
+FieldsExpr    <- FieldExpr ( Spacing ',' Spacing FieldExpr )*
+FieldExpr     <- FieldBegin Path?      { p.AppendField() }
+FieldBegin    <- < Identifier >        { p.PathObjectProp(text) }
+Alias         <- < Identifier >        { p.RegisterAlias(text) }
+
+
+Object        <- "archive"     { p.FromArchive() }
+               / "object"      { p.FromObject() }
+               / S3ObjectPath  { p.FromS3ObjectPath() }
+
+# Amazon S3 Select always treats a JSON document as an array of root-level
+# values. Thus, even if the JSON object that you are querying has only one root
+# element, the FROM clause must begin with S3Object[*]. However, for
+# compatibility reasons, Amazon S3 Select allows you to omit the wildcard if
+# you don't include a path. Thus, the complete clause 'FROM S3Object' is
+# equivalent to 'FROM S3Object[*] as S3Object'. If you include a path, you must
+# also use the wildcard. So 'FROM S3Object' and 'FROM S3Object[*].path' are both
+# valid clauses, but 'FROM S3Object.path' is not. 
+S3ObjectPath  <- "s3object" ( WildcardIndex Path )?
+
+
+ArrayIndex    <- '[' < Number+ > ']'                    { p.PathArrayIndex(text) }
+WildcardIndex <- '[*]'                                  { p.PathWildcardIndex() }
+ObjectIndex   <- '[' "'" < Identifier > "'" ']'         { p.PathObjectProp(text) }
+ObjectProp    <- '.' ( < Identifier >                   { p.PathObjectProp(text) }
+                     / '"' < Identifier > '"'           { p.PathObjectPropNoCase(text) }
+                     )
+
+
+PathPart      <- ObjectIndex / ObjectProp / ArrayIndex / WildcardIndex
+Path          <- PathPart+
+
+
+Identifier <- IdentStart IdentCont*
+IdentStart <- [[a-z_]]
+IdentCont  <- IdentStart / [0-9]
+
+
+Select  <- "select"  MustSpacing
+From    <- "from"    MustSpacing
+Where   <- "where"   MustSpacing
+As      <- "as"      MustSpacing
+Limit   <- "limit"   MustSpacing
+
+
+Number      <- '0' / ( [1-9] [0-9]* )
+Spacing     <- Space*
+MustSpacing <- Space+
+Space       <- ' ' / '\t' / EndOfLine
+EndOfLine   <- '\r\n' / '\n' / '\r'
+EndOfFile   <- !.
+
