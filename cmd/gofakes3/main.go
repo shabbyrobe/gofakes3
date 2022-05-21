@@ -9,6 +9,7 @@ import (
 	"net/http"
 	httppprof "net/http/pprof"
 	"os"
+	"path/filepath"
 	"runtime/pprof"
 	"time"
 
@@ -44,6 +45,7 @@ type fakeS3Flags struct {
 	directFsBucket string
 	fsPath         string
 	fsMeta         string
+	mkdirs         bool
 
 	debugCPU  string
 	debugHost string
@@ -62,6 +64,7 @@ func (f *fakeS3Flags) attach(flagSet *flag.FlagSet) {
 
 	// Backend specific:
 	flagSet.StringVar(&f.backendKind, "backend", "", "Backend to use to store data (memory, bolt, directfs, fs)")
+	flagSet.BoolVar(&f.mkdirs, "mkdirs", false, "Create directories and all parents for filesystem backends (-directfs.path, -fs.meta, etc)")
 	flagSet.StringVar(&f.boltDb, "bolt.db", "locals3.db", "Database path / name when using bolt backend")
 	flagSet.StringVar(&f.directFsPath, "directfs.path", "", "File path to serve using S3. You should not modify the contents of this path outside gofakes3 while it is running as it can cause inconsistencies.")
 	flagSet.StringVar(&f.directFsMeta, "directfs.meta", "", "Optional path for storing S3 metadata for your bucket. If not passed, metadata will not persist between restarts of gofakes3.")
@@ -144,8 +147,17 @@ func run() error {
 		return fmt.Errorf("-backend is required")
 
 	case "bolt":
-		var err error
-		backend, err = s3bolt.NewFile(values.boltDb, s3bolt.WithTimeSource(timeSource))
+		dbFile, err := filepath.Abs(values.boltDb)
+		if err != nil {
+			return err
+		}
+		if values.mkdirs {
+			if err := os.MkdirAll(filepath.Dir(dbFile), 0o700); err != nil {
+				return err
+			}
+		}
+
+		backend, err = s3bolt.NewFile(dbFile, s3bolt.WithTimeSource(timeSource))
 		if err != nil {
 			return err
 		}
@@ -163,14 +175,34 @@ func run() error {
 			log.Println("warning: time source not supported by this backend")
 		}
 
-		baseFs, err := s3afero.FsPath(values.fsPath)
+		fsPath, err := filepath.Abs(values.fsPath)
+		if err != nil {
+			return err
+		}
+		if values.mkdirs {
+			if err := os.MkdirAll(fsPath, 0o700); err != nil {
+				return err
+			}
+		}
+
+		baseFs, err := s3afero.FsPath(fsPath)
 		if err != nil {
 			return fmt.Errorf("gofakes3: could not create -fs.path: %v", err)
 		}
 
 		var options []s3afero.MultiOption
 		if values.fsMeta != "" {
-			metaFs, err := s3afero.FsPath(values.fsMeta)
+			fsMeta, err := filepath.Abs(values.fsMeta)
+			if err != nil {
+				return err
+			}
+			if values.mkdirs {
+				if err := os.MkdirAll(fsMeta, 0o700); err != nil {
+					return err
+				}
+			}
+
+			metaFs, err := s3afero.FsPath(fsMeta)
 			if err != nil {
 				return fmt.Errorf("gofakes3: could not create -fs.meta: %v", err)
 			}
@@ -191,6 +223,16 @@ func run() error {
 		}
 		if timeSource != nil {
 			log.Println("warning: time source not supported by this backend")
+		}
+
+		fsPath, err := filepath.Abs(values.fsPath)
+		if err != nil {
+			return err
+		}
+		if values.mkdirs {
+			if err := os.MkdirAll(fsPath, 0o700); err != nil {
+				return err
+			}
 		}
 
 		baseFs, err := s3afero.FsPath(values.directFsPath)
